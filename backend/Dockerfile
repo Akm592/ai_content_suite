@@ -6,6 +6,7 @@ WORKDIR /app/backend
 
 # Install system dependencies required for some Python packages (e.g., Pillow for images)
 RUN apt-get update && apt-get install -y \
+    redis-server \
     build-essential \
     libgl1-mesa-glx \
     && rm -rf /var/lib/apt/lists/*
@@ -15,10 +16,6 @@ COPY requirements.txt .
 
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Install Redis
-RUN apt-get install -y redis-server \
-    && rm -rf /var/lib/apt/lists/*
 
 
 # Copy the rest of the application code
