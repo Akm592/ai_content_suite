@@ -16,6 +16,11 @@ COPY requirements.txt .
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Install Redis
+RUN apt-get install -y redis-server \
+    && rm -rf /var/lib/apt/lists/*
+
+
 # Copy the rest of the application code
 COPY . .
 
