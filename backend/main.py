@@ -21,7 +21,7 @@ from redis_client import get_redis_client
 from pdf_to_audiobook.pdf_parser import extract_text_advanced, sanitize_text_for_tts
 from pdf_to_audiobook.tts_generator import generate_audio_with_profile
 from pdf_to_audiobook.audio_converter import convert_wav_bytes_to_mp3
-from storybook_creator.narrative_processor import segment_story_into_scenes
+from storybook_creator.narrative_processor import segment_story_into_scenes, generate_title_and_author
 from storybook_creator.image_generator import generate_master_prompt, generate_consistent_image
 from storybook_creator.pdf_assembler import create_storybook_pdf
 
@@ -107,6 +107,10 @@ class StorybookStyle(BaseModel):
 class SceneUpdate(BaseModel):
     text: str
 
+class StoryDetailsUpdate(BaseModel):
+    title: str
+    author: str
+
 # --- Flow 1: Direct, Stateless Generation ---
 @app.post("/storybook/create-and-finalize")
 async def create_and_finalize_storybook(background_tasks: BackgroundTasks, story_text: str = Form(...), character_desc: str = Form(...), style_desc: str = Form(...)):
@@ -114,6 +118,7 @@ async def create_and_finalize_storybook(background_tasks: BackgroundTasks, story
     temp_dir = tempfile.mkdtemp()
     background_tasks.add_task(shutil.rmtree, temp_dir, ignore_errors=True)
     try:
+        story_title, author = generate_title_and_author(story_text)
         master_prompt = generate_master_prompt(character_desc, style_desc)
         scenes = segment_story_into_scenes(story_text)
         if not scenes: raise HTTPException(status_code=400, detail="Could not segment the story text.")
@@ -123,7 +128,7 @@ async def create_and_finalize_storybook(background_tasks: BackgroundTasks, story
             success = generate_consistent_image(master_prompt, scene_text, image_path)
             illustrated_scenes.append({"text": scene_text, "image_path": image_path if success else None})
         output_pdf_path = os.path.join(temp_dir, "storybook.pdf")
-        create_storybook_pdf(illustrated_scenes, output_pdf_path)
+        create_storybook_pdf(illustrated_scenes, output_pdf_path, story_title=story_title, author=author)
         return FileResponse(path=output_pdf_path, media_type="application/pdf", filename="ai_storybook.pdf")
     except Exception as e:
         logger.exception(f"An error occurred during direct-to-PDF storybook creation: {e}")
@@ -138,6 +143,7 @@ async def start_storybook_session(story_text: str = Form(...), character_desc: s
     temp_dir = tempfile.mkdtemp(prefix=f"storybook_{session_id}_")
     redis_client.set(f"session:{session_id}", temp_dir, ex=SESSION_EXPIRATION_SECONDS)
     logger.info(f"Starting new storybook session: {session_id} in {temp_dir}")
+    story_title, author = generate_title_and_author(story_text)
     master_prompt = generate_master_prompt(character_desc, style_desc)
     scenes = segment_story_into_scenes(story_text)
     base_url = f"/storybook/session/{session_id}/image/"
@@ -147,7 +153,7 @@ async def start_storybook_session(story_text: str = Form(...), character_desc: s
         image_path = os.path.join(temp_dir, image_name)
         success = generate_consistent_image(master_prompt, scene_text, image_path)
         illustrated_scenes.append({"text": scene_text, "image_url": f"{base_url}{image_name}" if success else None})
-    session_data = {"session_id": session_id, "master_prompt": master_prompt, "styles": {"font_name": "Helvetica", "font_size": 14}, "scenes": illustrated_scenes}
+    session_data = {"session_id": session_id, "master_prompt": master_prompt, "styles": {"font_name": "Helvetica", "font_size": 14}, "scenes": illustrated_scenes, "title": story_title, "author": author}
     with open(os.path.join(temp_dir, "session_data.json"), "w") as f:
         json.dump(session_data, f, indent=4)
     return session_data
@@ -212,6 +218,18 @@ async def update_styles(session_id: str, styles: StorybookStyle):
         json.dump(session_data, f, indent=4)
     return {"message": "Styles updated successfully"}
 
+@app.put("/storybook/session/{session_id}/details")
+async def update_storybook_details(session_id: str, update_data: StoryDetailsUpdate):
+    session_dir = get_session_dir(session_id)
+    session_data_path = os.path.join(session_dir, "session_data.json")
+    with open(session_data_path, "r") as f:
+        session_data = json.load(f)
+    session_data["title"] = update_data.title
+    session_data["author"] = update_data.author
+    with open(session_data_path, "w") as f:
+        json.dump(session_data, f, indent=4)
+    return {"message": "Story details updated successfully"}
+
 @app.get("/storybook/session/{session_id}/preview")
 async def preview_storybook(session_id: str):
     """Generates a PDF for previewing (inline) and does NOT clean up the session."""
@@ -223,7 +241,14 @@ async def preview_storybook(session_id: str):
         if scene.get("image_url"):
             scene["image_path"] = os.path.join(session_dir, os.path.basename(scene["image_url"]))
     output_pdf_path = os.path.join(session_dir, "preview_storybook.pdf")
-    create_storybook_pdf(session_data["scenes"], output_pdf_path, session_data["styles"]["font_name"], session_data["styles"]["font_size"])
+    create_storybook_pdf(
+        session_data["scenes"],
+        output_pdf_path,
+        font_name=session_data["styles"]["font_name"],
+        font_size=session_data["styles"]["font_size"],
+        story_title=session_data.get("title", "My Storybook"),
+        author=session_data.get("author", "Anonymous")
+    )
     logger.info(f"Generated PREVIEW PDF for session {session_id}.")
     return FileResponse(path=output_pdf_path, media_type="application/pdf", headers={"Content-Disposition": "inline"})
 
@@ -238,7 +263,14 @@ async def download_final_pdf(session_id: str, background_tasks: BackgroundTasks)
         if scene.get("image_url"):
             scene["image_path"] = os.path.join(session_dir, os.path.basename(scene["image_url"]))
     output_pdf_path = os.path.join(session_dir, "final_storybook.pdf")
-    create_storybook_pdf(session_data["scenes"], output_pdf_path, session_data["styles"]["font_name"], session_data["styles"]["font_size"])
+    create_storybook_pdf(
+        session_data["scenes"],
+        output_pdf_path,
+        font_name=session_data["styles"]["font_name"],
+        font_size=session_data["styles"]["font_size"],
+        story_title=session_data.get("title", "My Storybook"),
+        author=session_data.get("author", "Anonymous")
+    )
     
     # Schedule the session directory and Redis key to be deleted AFTER the response is sent.
     background_tasks.add_task(cleanup_directory, session_id, session_dir)

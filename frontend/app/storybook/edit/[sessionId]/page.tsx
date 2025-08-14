@@ -18,6 +18,8 @@ interface StorybookSession {
   session_id: string;
   styles: Styles;
   scenes: Scene[];
+  title: string;
+  author: string;
 }
 
 // Debounce helper function to delay API calls
@@ -40,6 +42,8 @@ export default function EditStorybookPage() {
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null); // This will hold a temporary blob: URL
   const [regeneratingScene, setRegeneratingScene] = useState<number | null>(null);
+  const [storybookTitle, setStorybookTitle] = useState(''); // New state
+  const [storybookAuthor, setStorybookAuthor] = useState(''); // New state
 
   // This effect runs once on mount to fetch the initial session data
   useEffect(() => {
@@ -58,6 +62,8 @@ export default function EditStorybookPage() {
         }
         const data = await response.json();
         setSession(data);
+        setStorybookTitle(data.title || ''); // Populate title
+        setStorybookAuthor(data.author || ''); // Populate author
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -82,12 +88,39 @@ export default function EditStorybookPage() {
     }
   }, 1000), [sessionId]); // 1-second delay after typing stops
 
+  // Debounced function to save title and author changes to the backend
+  const saveDetailsChanges = useCallback(debounce(async (newTitle: string, newAuthor: string) => {
+    if (!sessionId) return;
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/storybook/session/${sessionId}/details`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newTitle, author: newAuthor }),
+      });
+    } catch (err) {
+        console.error("Failed to save story details:", err);
+    }
+  }, 1000), [sessionId]); // 1-second delay after typing stops
+
   // Handler for when the user types in a textarea
   const handleTextChange = (sceneIndex: number, newText: string) => {
     if (!session) return;
     const newSessionState = {...session, scenes: session.scenes.map((s, i) => i === sceneIndex ? {...s, text: newText} : s)};
     setSession(newSessionState); // Update UI immediately
     saveTextChanges(sceneIndex, newText); // Trigger debounced save
+  };
+
+  // Handlers for title and author changes
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newTitle = e.target.value;
+    setStorybookTitle(newTitle);
+    saveDetailsChanges(newTitle, storybookAuthor);
+  };
+
+  const handleAuthorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newAuthor = e.target.value;
+    setStorybookAuthor(newAuthor);
+    saveDetailsChanges(storybookTitle, newAuthor);
   };
 
   // Handler for regenerating an image
@@ -161,6 +194,39 @@ export default function EditStorybookPage() {
       >
         {isPreviewing ? 'Generating Preview...' : '📖 Preview Storybook'}
       </button>
+    </div>
+
+    {/* Title and Author Inputs */}
+    <div className="mb-8 p-6 bg-black/40 border border-white/10 backdrop-blur-xl rounded-3xl shadow-2xl">
+      <h3 className="text-xl font-semibold mb-3 text-purple-300 drop-shadow-md">
+        📚 Story Details
+      </h3>
+      <div className="mb-4">
+        <label htmlFor="storybook-title" className="block text-sm font-medium text-gray-300 mb-2">
+          Story Title
+        </label>
+        <input
+          type="text"
+          id="storybook-title"
+          value={storybookTitle}
+          onChange={handleTitleChange}
+          className="w-full p-3 bg-black/30 border border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:ring-2 focus:ring-purple-500 transition-all"
+          placeholder="Enter your story's title"
+        />
+      </div>
+      <div>
+        <label htmlFor="storybook-author" className="block text-sm font-medium text-gray-300 mb-2">
+          Author Name
+        </label>
+        <input
+          type="text"
+          id="storybook-author"
+          value={storybookAuthor}
+          onChange={handleAuthorChange}
+          className="w-full p-3 bg-black/30 border border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:ring-2 focus:ring-purple-500 transition-all"
+          placeholder="Enter the author's name"
+        />
+      </div>
     </div>
 
     {/* Scene List */}
