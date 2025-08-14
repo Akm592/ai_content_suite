@@ -85,8 +85,12 @@ export default function StorybookCreatorStartPage() {
         localStorage.setItem(`storybook_session_${sessionData.session_id}`, JSON.stringify(sessionData));
         router.push(`/storybook/edit/${sessionData.session_id}`);
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("An unknown error occurred.");
+      }
     } finally {
       setIsLoading(false);
     }

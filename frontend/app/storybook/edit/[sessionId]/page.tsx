@@ -1,8 +1,9 @@
 // frontend/app/storybook/edit/[sessionId]/page.tsx
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
+import Image from 'next/image'; // New import
 import PdfPreviewModal from '../../../components/ui/PdfPreviewModal';
 
 // Define types for our session data for type safety
@@ -23,13 +24,16 @@ interface StorybookSession {
 }
 
 // Debounce helper function to delay API calls
-function debounce<F extends (...args: any[]) => any>(func: F, waitFor: number) {
+function debounce<F extends (...args: Parameters<F>) => Promise<void>>(func: F, waitFor: number) {
   let timeout: NodeJS.Timeout;
-  return (...args: Parameters<F>): Promise<ReturnType<F>> =>
-    new Promise(resolve => {
+  return (...args: Parameters<F>): Promise<void> => {
+    return new Promise(resolve => {
       if (timeout) clearTimeout(timeout);
-      timeout = setTimeout(() => resolve(func(...args)), waitFor);
+      timeout = setTimeout(() => {
+        func(...args).then(resolve); // Resolve the outer promise when the debounced function completes
+      }, waitFor);
     });
+  };
 }
 
 export default function EditStorybookPage() {
@@ -46,6 +50,53 @@ export default function EditStorybookPage() {
   const [storybookAuthor, setStorybookAuthor] = useState(''); // New state
   const [currentFontName, setCurrentFontName] = useState('Helvetica'); // New state for font name
   const [currentFontSize, setCurrentFontSize] = useState(14); // New state for font size
+
+  // Refs for debounced functions
+  const saveTextChangesRef = useRef(debounce(async (_sceneIndex: number, _newText: string) => {}, 1000));
+  const saveDetailsChangesRef = useRef(debounce(async (_newTitle: string, _newAuthor: string) => {}, 1000));
+  const saveStyleChangesRef = useRef(debounce(async (_newFontName: string, _newFontSize: number) => {}, 1000));
+
+  // Initialize debounced functions in a useEffect to ensure they are stable
+  useEffect(() => {
+    saveTextChangesRef.current = debounce(async (sceneIndex: number, newText: string) => {
+      if (!sessionId) return;
+      try {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/storybook/session/${sessionId}/scene/${sceneIndex}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: newText }),
+        });
+      } catch (err: unknown) {
+          console.error("Failed to save text changes:", err);
+      }
+    }, 1000);
+
+    saveDetailsChangesRef.current = debounce(async (newTitle: string, newAuthor: string) => {
+      if (!sessionId) return;
+      try {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/storybook/session/${sessionId}/details`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: newTitle, author: newAuthor }),
+        });
+      } catch (err: unknown) {
+          console.error("Failed to save story details:", err);
+      }
+    }, 1000);
+
+    saveStyleChangesRef.current = debounce(async (newFontName: string, newFontSize: number) => {
+      if (!sessionId) return;
+      try {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/storybook/session/${sessionId}/styles`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ font_name: newFontName, font_size: newFontSize }),
+        });
+      } catch (err: unknown) {
+          console.error("Failed to save style changes:", err);
+      }
+    }, 1000);
+  }, [sessionId]); // Depend on sessionId to recreate debounced functions if session changes
 
   // This effect runs once on mount to fetch the initial session data
   useEffect(() => {
@@ -68,8 +119,12 @@ export default function EditStorybookPage() {
         setStorybookAuthor(data.author || ''); // Populate author
         setCurrentFontName(data.styles.font_name || 'Helvetica'); // Populate font name
         setCurrentFontSize(data.styles.font_size || 14); // Populate font size
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError("An unknown error occurred during session data fetch.");
+        }
       } finally {
         setIsLoading(false);
       }
@@ -78,81 +133,39 @@ export default function EditStorybookPage() {
     fetchSessionData();
   }, [sessionId]);
 
-  // Debounced function to save text changes to the backend
-  const saveTextChanges = useCallback(debounce(async (sceneIndex: number, newText: string) => {
-    if (!sessionId) return;
-    try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/storybook/session/${sessionId}/scene/${sceneIndex}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: newText }),
-      });
-    } catch (err) {
-        console.error("Failed to save text changes:", err);
-    }
-  }, 1000), [sessionId]); // 1-second delay after typing stops
-
-  // Debounced function to save title and author changes to the backend
-  const saveDetailsChanges = useCallback(debounce(async (newTitle: string, newAuthor: string) => {
-    if (!sessionId) return;
-    try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/storybook/session/${sessionId}/details`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: newTitle, author: newAuthor }),
-      });
-    } catch (err) {
-        console.error("Failed to save story details:", err);
-    }
-  }, 1000), [sessionId]); // 1-second delay after typing stops
-
-  // Debounced function to save style changes to the backend
-  const saveStyleChanges = useCallback(debounce(async (newFontName: string, newFontSize: number) => {
-    if (!sessionId) return;
-    try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/storybook/session/${sessionId}/styles`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ font_name: newFontName, font_size: newFontSize }),
-      });
-    } catch (err) {
-        console.error("Failed to save style changes:", err);
-    }
-  }, 1000), [sessionId]); // 1-second delay after typing stops
-
   // Handler for when the user types in a textarea
   const handleTextChange = (sceneIndex: number, newText: string) => {
     if (!session) return;
     const newSessionState = {...session, scenes: session.scenes.map((s, i) => i === sceneIndex ? {...s, text: newText} : s)};
     setSession(newSessionState); // Update UI immediately
-    saveTextChanges(sceneIndex, newText); // Trigger debounced save
+    saveTextChangesRef.current(sceneIndex, newText); // Call via ref
   };
 
   // Handlers for title and author changes
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTitle = e.target.value;
     setStorybookTitle(newTitle);
-    saveDetailsChanges(newTitle, storybookAuthor);
+    saveDetailsChangesRef.current(newTitle, storybookAuthor); // Call via ref
   };
 
   const handleAuthorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newAuthor = e.target.value;
     setStorybookAuthor(newAuthor);
-    saveDetailsChanges(storybookTitle, newAuthor);
+    saveDetailsChangesRef.current(storybookTitle, newAuthor); // Call via ref
   };
 
   // Handlers for font style changes
   const handleFontNameChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newFontName = e.target.value;
     setCurrentFontName(newFontName);
-    saveStyleChanges(newFontName, currentFontSize);
+    saveStyleChangesRef.current(newFontName, currentFontSize); // Call via ref
   };
 
   const handleFontSizeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newFontSize = parseInt(e.target.value);
     if (!isNaN(newFontSize)) {
       setCurrentFontSize(newFontSize);
-      saveStyleChanges(currentFontName, newFontSize);
+      saveStyleChangesRef.current(currentFontName, newFontSize); // Call via ref
     }
   };
 
@@ -166,8 +179,12 @@ export default function EditStorybookPage() {
       const data = await response.json();
       const newSessionState = {...session, scenes: session.scenes.map((s, i) => i === sceneIndex ? {...s, image_url: data.new_image_url} : s)};
       setSession(newSessionState);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("An unknown error occurred during image regeneration.");
+      }
     } finally {
       setRegeneratingScene(null);
     }
@@ -190,8 +207,12 @@ export default function EditStorybookPage() {
       const objectUrl = URL.createObjectURL(pdfBlob);
       setPreviewUrl(objectUrl); // This triggers the modal to open
 
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("An unknown error occurred during preview generation.");
+      }
     } finally {
       setIsPreviewing(false);
     }
@@ -321,10 +342,12 @@ export default function EditStorybookPage() {
           {/* Image Preview */}
           <div className="mt-6 relative aspect-square max-w-md mx-auto bg-black/30 border border-white/10 rounded-2xl flex items-center justify-center overflow-hidden">
             {scene.image_url ? (
-              <img
+              <Image // Changed from img
                 src={`${process.env.NEXT_PUBLIC_API_URL}${scene.image_url}`}
                 alt={`Illustration for scene ${index + 1}`}
-                className="rounded-2xl object-contain w-full h-full"
+                fill // Added fill prop
+                style={{ objectFit: 'contain' }} // Added style prop for object-fit
+                className="rounded-2xl" // Kept relevant class
               />
             ) : (
               <div className="text-gray-400">No image generated</div>
