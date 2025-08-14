@@ -1,0 +1,22 @@
+# Core AI and Google API
+google-generativeai
+python-dotenv
+
+# PDF Processing
+PyMuPDF
+pymupdf4llm
+
+# Audio Processing
+pydub
+
+# PDF Generation
+reportlab
+
+# NLP for Text Segmentation
+spacy
+semantic-text-splitter
+
+# FastAPI Web Framework
+fastapi
+uvicorn[standard]  # For running the server
+python-multipart   # For handling file uploads
