@@ -42,7 +42,7 @@ app = FastAPI(title="AI Content Transformation Suite API")
 redis_client = get_redis_client()
 
 # --- CORS Middleware ---
-origins = ["http://localhost:3000"]
+origins = ["http://localhost:3000", os.getenv("FRONTEND_URL", "http://localhost:3000")]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
