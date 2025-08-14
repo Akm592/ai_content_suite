@@ -1,6 +1,5 @@
-# storybook_creator/pdf_assembler.py
 from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Image, PageBreak, Spacer, PageTemplate, Frame
+    SimpleDocTemplate, Paragraph, Image, PageBreak, Spacer
 )
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
@@ -17,43 +16,46 @@ def _add_page_number(canvas: Canvas, doc):
     canvas.setFont("Helvetica", 9)
     canvas.setFillColor(colors.grey)
     canvas.drawRightString(
-        doc.pagesize[0] - inch * 0.5,
-        0.5 * inch,
-        f"Page {page_num}"
+        doc.pagesize[0] - inch * 0.4,
+        0.4 * inch,
+        f"{page_num}"
     )
 
 def create_storybook_pdf(
     illustrated_scenes: list,
     output_path: str,
     font_name: str = "Helvetica",
-    font_size: int = 14,
+    font_size: int = 16,
     story_title: str = "My Storybook",
     author: str = "Anonymous"
 ):
     """
-    Assembles the text scenes and their corresponding images into a storybook PDF
-    with improved layout and formatting.
+    Creates a picture book style PDF:
+    - Cover page
+    - Each scene: left page with text, right page with large image
+    - Minimal margins for more immersive visuals
     """
     logger.info(f"Assembling storybook PDF with {len(illustrated_scenes)} scenes.")
-    
+
     doc = SimpleDocTemplate(
         output_path,
         pagesize=letter,
-        rightMargin=0.75 * inch,
-        leftMargin=0.75 * inch,
-        topMargin=1 * inch,
-        bottomMargin=0.75 * inch
+        rightMargin=0.5 * inch,
+        leftMargin=0.5 * inch,
+        topMargin=0.7 * inch,
+        bottomMargin=0.5 * inch
     )
     story_flowables = []
 
     styles = getSampleStyleSheet()
+
     body_style = ParagraphStyle(
         'BodyTextCustom',
         parent=styles['BodyText'],
         fontName=font_name,
         fontSize=font_size,
-        leading=font_size * 1.5,
-        spaceAfter=16
+        leading=font_size * 1.4,
+        spaceAfter=14
     )
     scene_title_style = ParagraphStyle(
         'SceneTitle',
@@ -61,13 +63,13 @@ def create_storybook_pdf(
         fontName=font_name,
         fontSize=font_size + 4,
         textColor=colors.darkblue,
-        spaceAfter=12
+        spaceAfter=10
     )
     cover_title_style = ParagraphStyle(
         'CoverTitle',
         parent=styles['Title'],
         fontName=font_name,
-        fontSize=28,
+        fontSize=32,
         alignment=1,  # center
         textColor=colors.HexColor("#1f4e79"),
         spaceAfter=20
@@ -76,48 +78,49 @@ def create_storybook_pdf(
         'CoverAuthor',
         parent=styles['Normal'],
         fontName=font_name,
-        fontSize=16,
+        fontSize=18,
         alignment=1,  # center
         textColor=colors.grey
     )
 
-    # Cover Page
-    story_flowables.append(Spacer(1, 2 * inch))
+    # --- Cover Page ---
+    story_flowables.append(Spacer(1, 3 * inch))
     story_flowables.append(Paragraph(story_title, cover_title_style))
     story_flowables.append(Paragraph(f"by {author}", cover_author_style))
     story_flowables.append(PageBreak())
 
-    # Scene pages
+    # --- Scene Pages ---
     for i, scene in enumerate(illustrated_scenes, start=1):
         scene_text = scene.get('text', '[No text for this scene]')
-        scene_title = f"Scene {i}"
-        story_flowables.append(Paragraph(scene_title, scene_title_style))
-        story_flowables.append(Paragraph(scene_text, body_style))
-        story_flowables.append(Spacer(1, 0.2 * inch))
-
         image_path = scene.get('image_path')
+
+        # Text page (left)
+        story_flowables.append(Paragraph(f"Scene {i}", scene_title_style))
+        story_flowables.append(Paragraph(scene_text, body_style))
+        story_flowables.append(PageBreak())
+
+        # Image page (right)
         if image_path and os.path.exists(image_path):
             try:
-                logger.info(f"Adding image {image_path} for scene {i} to PDF.")
-                img = Image(image_path, width=5.5 * inch, height=5.5 * inch, kind='proportional')
+                logger.info(f"Adding image {image_path} for scene {i}.")
+                img = Image(image_path, width=7.5 * inch, height=9.5 * inch, kind='proportional')
                 img.hAlign = 'CENTER'
                 story_flowables.append(img)
             except Exception as e:
-                logger.warning(f"Could not add image from {image_path} for scene {i}. Error: {e}")
-                story_flowables.append(Paragraph(f"[Image could not be loaded]", styles['Normal']))
+                logger.warning(f"Could not add image from {image_path}: {e}")
+                story_flowables.append(Paragraph("[Image could not be loaded]", styles['Normal']))
         else:
-            logger.warning(f"No image found for scene {i}. Adding placeholder text.")
-            story_flowables.append(Paragraph(f"[Image missing]", styles['Normal']))
+            logger.warning(f"No image found for scene {i}")
+            story_flowables.append(Paragraph("[Image missing]", styles['Normal']))
 
         story_flowables.append(PageBreak())
 
     try:
-        logger.info(f"Building final PDF document at {output_path}.")
         doc.build(
             story_flowables,
             onFirstPage=_add_page_number,
             onLaterPages=_add_page_number
         )
-        logger.info(f"Storybook PDF successfully created at {output_path}")
+        logger.info(f"Storybook PDF created at {output_path}")
     except Exception as e:
         logger.critical(f"Error while building PDF: {e}", exc_info=True)

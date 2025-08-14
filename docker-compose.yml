@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  redis:
+    image: 'redis:7-alpine'
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - '8000:8000'
+    environment:
+      # Ensure this matches the port exposed in the backend Dockerfile
+      PORT: 8000
+      # Point to the Redis service within the Docker network
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # You will need to set GOOGLE_API_KEY in your .env file or directly here
+      # GOOGLE_API_KEY: your_google_api_key_here
+    depends_on:
+      - redis
+    networks:
+      - app-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - '3000:3000'
+    environment:
+      # Point to the backend service within the Docker network
+      NEXT_PUBLIC_API_URL: http://backend:8000
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+volumes:
+  redis_data:
+
+networks:
+  app-network:
+    driver: bridge

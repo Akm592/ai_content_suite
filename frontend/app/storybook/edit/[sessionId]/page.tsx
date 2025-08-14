@@ -44,6 +44,8 @@ export default function EditStorybookPage() {
   const [regeneratingScene, setRegeneratingScene] = useState<number | null>(null);
   const [storybookTitle, setStorybookTitle] = useState(''); // New state
   const [storybookAuthor, setStorybookAuthor] = useState(''); // New state
+  const [currentFontName, setCurrentFontName] = useState('Helvetica'); // New state for font name
+  const [currentFontSize, setCurrentFontSize] = useState(14); // New state for font size
 
   // This effect runs once on mount to fetch the initial session data
   useEffect(() => {
@@ -64,6 +66,8 @@ export default function EditStorybookPage() {
         setSession(data);
         setStorybookTitle(data.title || ''); // Populate title
         setStorybookAuthor(data.author || ''); // Populate author
+        setCurrentFontName(data.styles.font_name || 'Helvetica'); // Populate font name
+        setCurrentFontSize(data.styles.font_size || 14); // Populate font size
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -102,6 +106,20 @@ export default function EditStorybookPage() {
     }
   }, 1000), [sessionId]); // 1-second delay after typing stops
 
+  // Debounced function to save style changes to the backend
+  const saveStyleChanges = useCallback(debounce(async (newFontName: string, newFontSize: number) => {
+    if (!sessionId) return;
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/storybook/session/${sessionId}/styles`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ font_name: newFontName, font_size: newFontSize }),
+      });
+    } catch (err) {
+        console.error("Failed to save style changes:", err);
+    }
+  }, 1000), [sessionId]); // 1-second delay after typing stops
+
   // Handler for when the user types in a textarea
   const handleTextChange = (sceneIndex: number, newText: string) => {
     if (!session) return;
@@ -121,6 +139,21 @@ export default function EditStorybookPage() {
     const newAuthor = e.target.value;
     setStorybookAuthor(newAuthor);
     saveDetailsChanges(storybookTitle, newAuthor);
+  };
+
+  // Handlers for font style changes
+  const handleFontNameChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newFontName = e.target.value;
+    setCurrentFontName(newFontName);
+    saveStyleChanges(newFontName, currentFontSize);
+  };
+
+  const handleFontSizeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newFontSize = parseInt(e.target.value);
+    if (!isNaN(newFontSize)) {
+      setCurrentFontSize(newFontSize);
+      saveStyleChanges(currentFontName, newFontSize);
+    }
   };
 
   // Handler for regenerating an image
@@ -225,6 +258,42 @@ export default function EditStorybookPage() {
           onChange={handleAuthorChange}
           className="w-full p-3 bg-black/30 border border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:ring-2 focus:ring-purple-500 transition-all"
           placeholder="Enter the author's name"
+        />
+      </div>
+    </div>
+
+    {/* Style Settings */}
+    <div className="mb-8 p-6 bg-black/40 border border-white/10 backdrop-blur-xl rounded-3xl shadow-2xl">
+      <h3 className="text-xl font-semibold mb-3 text-purple-300 drop-shadow-md">
+        🎨 Style Settings
+      </h3>
+      <div className="mb-4">
+        <label htmlFor="font-name" className="block text-sm font-medium text-gray-300 mb-2">
+          Font Name
+        </label>
+        <select
+          id="font-name"
+          value={currentFontName}
+          onChange={handleFontNameChange}
+          className="w-full p-3 bg-black/30 border border-white/10 text-white rounded-xl focus:ring-2 focus:ring-purple-500 transition-all"
+        >
+          <option value="Helvetica">Helvetica</option>
+          <option value="Times-Roman">Times-Roman</option>
+          <option value="Courier">Courier</option>
+        </select>
+      </div>
+      <div>
+        <label htmlFor="font-size" className="block text-sm font-medium text-gray-300 mb-2">
+          Font Size
+        </label>
+        <input
+          type="number"
+          id="font-size"
+          value={currentFontSize}
+          onChange={handleFontSizeChange}
+          min="8"
+          max="36"
+          className="w-full p-3 bg-black/30 border border-white/10 text-white rounded-xl focus:ring-2 focus:ring-purple-500 transition-all"
         />
       </div>
     </div>

@@ -11,10 +11,10 @@ logger = logging.getLogger(__name__)
 def configure_api():
     """Loads the API key from the .env file and creates a genai.Client."""
     load_dotenv()
-    api_key = os.getenv("GOOGLE_API_KEY")
+    api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        logger.critical("GOOGLE_API_KEY not found in .env file. Text generation will fail.")
-        raise ValueError("GOOGLE_API_KEY not found in .env file. Please set it.")
+        logger.critical("GEMINI_API_KEY not found in .env file. Text generation will fail.")
+        raise ValueError("GEMINI_API_KEY not found in .env file. Please set it.")
     return genai.Client(api_key=api_key)
 
 # Create the API client once when the module loads
@@ -79,7 +79,7 @@ def generate_title_and_author(story_text: str) -> tuple[str, str]:
 
     try:
         response = client.models.generate_content(
-            model="gemini-1.5-flash", # Using a text-focused model
+            model="gemini-2.0-flash-001", # Using a text-focused model
             contents=[prompt],
             generation_config=types.GenerationConfig(
                 temperature=0.7,
