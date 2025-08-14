@@ -1,5 +1,5 @@
 # Core AI and Google API
-google-generativeai
+google-genai
 python-dotenv
 
 # PDF Processing
@@ -20,3 +20,5 @@ semantic-text-splitter
 fastapi
 uvicorn[standard]  # For running the server
 python-multipart   # For handling file uploads
+
+redis
