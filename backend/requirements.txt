@@ -15,6 +15,7 @@ reportlab
 # NLP for Text Segmentation
 spacy
 semantic-text-splitter
+tiktoken
 
 # FastAPI Web Framework
 fastapi

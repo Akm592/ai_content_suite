@@ -18,12 +18,17 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # --- Your Custom Logic Modules ---
 from redis_client import get_redis_client
-from pdf_to_audiobook.pdf_parser import extract_text_advanced, sanitize_text_for_tts
+from pdf_to_audiobook.pdf_parser import extract_text_and_count, sanitize_text_for_tts
 from pdf_to_audiobook.tts_generator import generate_audio_with_profile
 from pdf_to_audiobook.audio_converter import convert_wav_bytes_to_mp3
-from storybook_creator.narrative_processor import segment_story_into_scenes, generate_title_and_author
+from storybook_creator.narrative_processor import segment_story_into_scenes, generate_title_and_author, client as gemini_client
+from pdf_to_audiobook.token_counter import count_tokens_streaming as local_count_tokens
 from storybook_creator.image_generator import generate_master_prompt, generate_consistent_image
 from storybook_creator.pdf_assembler import create_storybook_pdf
+
+# --- Constants ---
+MAX_TOKENS_FOR_PROCESSING = 10000 # Maximum tokens allowed for LLM/TTS processing
+MAX_PDF_TOKENS = 3000 # Maximum tokens allowed for PDF input before warning
 
 # --- Logging & App Setup ---
 logging.basicConfig(
@@ -66,6 +71,34 @@ def get_session_dir(session_id: str) -> str:
         raise HTTPException(status_code=404, detail="Session not found or has expired.")
     return session_dir
 
+def _check_and_truncate_text(text: str, max_tokens: int = MAX_TOKENS_FOR_PROCESSING) -> str:
+    """
+    Checks the token count of the given text and truncates it if it exceeds max_tokens.
+    Logs a warning if truncation occurs.
+    """
+    try:
+        # Use the local token counter
+        token_count = local_count_tokens(text, model="gpt-4o")
+        
+        if token_count > max_tokens:
+            logger.warning(f"Input text exceeds token limit ({token_count} > {max_tokens}). Truncating text.")
+            # A simple truncation strategy: keep roughly max_tokens worth of characters.
+            # This is a rough estimate, as character-to-token ratio varies.
+            # For more precision, one would need a proper tokenizer, but this is a guardrail.
+            # Assuming ~4 chars per token for English.
+            truncated_text = text[:max_tokens * 4] 
+            # Ensure truncation doesn't cut in the middle of a word or sentence awkwardly
+            # Find the last space before the truncation point
+            last_space_index = truncated_text.rfind(' ')
+            if last_space_index != -1:
+                truncated_text = truncated_text[:last_space_index]
+            
+            return truncated_text + "..." # Add ellipsis to indicate truncation
+        return text
+    except Exception as e:
+        logger.error(f"Error counting or truncating tokens: {e}. Returning original text.")
+        return text # Fallback to original text if token counting fails
+
 # --- Root Endpoint ---
 @app.get("/")
 def read_root():
@@ -82,10 +115,14 @@ async def convert_pdf_to_audiobook(background_tasks: BackgroundTasks, voice: str
     try:
         with open(temp_pdf_path, "wb") as buffer:
             shutil.copyfileobj(pdf_file.file, buffer)
-        raw_text = extract_text_advanced(temp_pdf_path)
+        raw_text, _ = extract_text_and_count(temp_pdf_path, sanitize=False, streaming=True)
         if not raw_text: raise HTTPException(status_code=400, detail="Failed to extract any text from the PDF.")
         clean_text = sanitize_text_for_tts(raw_text)
-        wav_audio_data = generate_audio_with_profile(clean_text, voice)
+        
+        # Apply token limit guardrail
+        processed_text = _check_and_truncate_text(clean_text)
+
+        wav_audio_data = generate_audio_with_profile(processed_text, voice)
         if not wav_audio_data: raise HTTPException(status_code=500, detail="AI model failed to generate audio.")
         output_mp3_path = os.path.join(temp_dir, "output.mp3")
         if not convert_wav_bytes_to_mp3(wav_audio_data, output_mp3_path):
@@ -113,14 +150,52 @@ class StoryDetailsUpdate(BaseModel):
 
 # --- Flow 1: Direct, Stateless Generation ---
 @app.post("/storybook/create-and-finalize")
-async def create_and_finalize_storybook(background_tasks: BackgroundTasks, story_text: str = Form(...), character_desc: str = Form(...), style_desc: str = Form(...)):
+async def create_and_finalize_storybook(
+    background_tasks: BackgroundTasks,
+    story_text: str = Form(None),
+    pdf_file: UploadFile = File(None),
+    character_desc: str = Form(...),
+    style_desc: str = Form(...)
+):
     logger.info("Request received for direct-to-PDF storybook generation.")
     temp_dir = tempfile.mkdtemp()
     background_tasks.add_task(shutil.rmtree, temp_dir, ignore_errors=True)
+
+    extracted_story_text = None
+    if pdf_file:
+        temp_pdf_path = os.path.join(temp_dir, pdf_file.filename)
+        try:
+            with open(temp_pdf_path, "wb") as buffer:
+                shutil.copyfileobj(pdf_file.file, buffer)
+            raw_text, pdf_token_count = extract_text_and_count(temp_pdf_path, sanitize=True, model="gpt-4o", streaming=True)
+            if not raw_text:
+                raise HTTPException(status_code=400, detail="Failed to extract any text from the PDF.")
+            
+            # Apply PDF-specific token guardrail
+            if pdf_token_count > MAX_PDF_TOKENS:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"PDF content ({pdf_token_count} tokens) exceeds the limit of {MAX_PDF_TOKENS} tokens. "
+                           "Please use a smaller PDF or provide text directly."
+                )
+            
+            extracted_story_text = raw_text # Use raw_text after token check
+        except Exception as e:
+            logger.exception(f"Error processing uploaded PDF: {e}")
+            raise HTTPException(status_code=500, detail=f"Error processing PDF: {e}")
+    
+    final_story_text = extracted_story_text if extracted_story_text else story_text
+
+    if not final_story_text:
+        raise HTTPException(status_code=400, detail="Either 'story_text' or 'pdf_file' must be provided.")
+
+    # Apply general token limit guardrail (truncation)
+    processed_story_text = _check_and_truncate_text(final_story_text)
+
     try:
-        story_title, author = generate_title_and_author(story_text)
+        story_title, author = generate_title_and_author(processed_story_text)
         master_prompt = generate_master_prompt(character_desc, style_desc)
-        scenes = segment_story_into_scenes(story_text)
+        scenes = segment_story_into_scenes(processed_story_text)
         if not scenes: raise HTTPException(status_code=400, detail="Could not segment the story text.")
         illustrated_scenes = []
         for i, scene_text in enumerate(scenes):
@@ -138,14 +213,51 @@ async def create_and_finalize_storybook(background_tasks: BackgroundTasks, story
 # --- Flow 2: Interactive Session Endpoints ---
 
 @app.post("/storybook/session/start")
-async def start_storybook_session(story_text: str = Form(...), character_desc: str = Form(...), style_desc: str = Form(...)):
+async def start_storybook_session(
+    story_text: str = Form(None),
+    pdf_file: UploadFile = File(None),
+    character_desc: str = Form(...),
+    style_desc: str = Form(...)
+):
     session_id = str(uuid.uuid4())
     temp_dir = tempfile.mkdtemp(prefix=f"storybook_{session_id}_")
     redis_client.set(f"session:{session_id}", temp_dir, ex=SESSION_EXPIRATION_SECONDS)
     logger.info(f"Starting new storybook session: {session_id} in {temp_dir}")
-    story_title, author = generate_title_and_author(story_text)
+
+    extracted_story_text = None
+    if pdf_file:
+        temp_pdf_path = os.path.join(temp_dir, pdf_file.filename)
+        try:
+            with open(temp_pdf_path, "wb") as buffer:
+                shutil.copyfileobj(pdf_file.file, buffer)
+            raw_text, pdf_token_count = extract_text_and_count(temp_pdf_path, sanitize=True, model="gpt-4o", streaming=True)
+            if not raw_text:
+                raise HTTPException(status_code=400, detail="Failed to extract any text from the PDF.")
+            
+            # Apply PDF-specific token guardrail
+            if pdf_token_count > MAX_PDF_TOKENS:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"PDF content ({pdf_token_count} tokens) exceeds the limit of {MAX_PDF_TOKENS} tokens. "
+                           "Please use a smaller PDF or provide text directly."
+                )
+            
+            extracted_story_text = raw_text # Use raw_text after token check
+        except Exception as e:
+            logger.exception(f"Error processing uploaded PDF: {e}")
+            raise HTTPException(status_code=500, detail=f"Error processing PDF: {e}")
+    
+    final_story_text = extracted_story_text if extracted_story_text else story_text
+
+    if not final_story_text:
+        raise HTTPException(status_code=400, detail="Either 'story_text' or 'pdf_file' must be provided.")
+
+    # Apply general token limit guardrail (truncation)
+    processed_story_text = _check_and_truncate_text(final_story_text)
+
+    story_title, author = generate_title_and_author(processed_story_text)
     master_prompt = generate_master_prompt(character_desc, style_desc)
-    scenes = segment_story_into_scenes(story_text)
+    scenes = segment_story_into_scenes(processed_story_text)
     base_url = f"/storybook/session/{session_id}/image/"
     illustrated_scenes = []
     for i, scene_text in enumerate(scenes):

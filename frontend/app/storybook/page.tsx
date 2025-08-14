@@ -11,21 +11,45 @@ export default function StorybookCreatorStartPage() {
   const [storyText, setStoryText] = useState('');
   const [characterDesc, setCharacterDesc] = useState('');
   const [styleDesc, setStyleDesc] = useState('');
+  const [pdfFile, setPdfFile] = useState<File | null>(null); // New state for PDF file
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setPdfFile(e.target.files[0]);
+      setStoryText(''); // Clear story text if PDF is selected
+    } else {
+      setPdfFile(null);
+    }
+  };
+
+  const handleStoryTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setStoryText(e.target.value);
+    setPdfFile(null); // Clear PDF if story text is entered
+  };
+
   const handleFormAction = async (action: 'direct' | 'edit', e: React.FormEvent) => {
     e.preventDefault();
-    if (!storyText || !characterDesc || !styleDesc) {
-      setError('Please fill out all fields.');
+    // Validation: Either storyText or pdfFile must be present
+    if (!storyText && !pdfFile) {
+      setError('Please provide either story text or a PDF file.');
+      return;
+    }
+    if (!characterDesc || !styleDesc) {
+      setError('Please fill out character and style descriptions.');
       return;
     }
     setIsLoading(true);
     setError('');
 
     const formData = new FormData();
-    formData.append('story_text', storyText);
+    if (pdfFile) {
+      formData.append('pdf_file', pdfFile);
+    } else {
+      formData.append('story_text', storyText);
+    }
     formData.append('character_desc', characterDesc);
     formData.append('style_desc', styleDesc);
 
@@ -92,16 +116,31 @@ export default function StorybookCreatorStartPage() {
           <form className="space-y-6">
             <div>
               <label htmlFor="story" className="block text-sm font-medium text-gray-300 mb-2">
-                Your Story Text
+                Your Story Text (or upload a PDF)
               </label>
               <Textarea
                 id="story"
                 value={storyText}
-                onChange={e => setStoryText(e.target.value)}
+                onChange={handleStoryTextChange} // Use the new handler
                 rows={6}
                 className="bg-black/40 border-white/10 text-white placeholder:text-gray-500 focus:ring-2 focus:ring-purple-500"
                 placeholder="Once upon a time, in a land filled with candy..."
+                disabled={!!pdfFile} // Disable if PDF is selected
               />
+            </div>
+
+            <div className="mt-4">
+              <label htmlFor="pdf-upload" className="block text-sm font-medium text-gray-300 mb-2">
+                Upload PDF
+              </label>
+              <Input
+                id="pdf-upload"
+                type="file"
+                accept=".pdf"
+                onChange={handleFileChange} // Use the new handler
+                className="bg-black/40 border-white/10 text-white file:text-white file:bg-purple-700 file:border-none file:rounded-md file:py-2 file:px-4 file:mr-4 hover:file:bg-purple-800"
+              />
+              {pdfFile && <p className="text-gray-400 text-sm mt-2">Selected: {pdfFile.name}</p>}
             </div>
 
             <div>

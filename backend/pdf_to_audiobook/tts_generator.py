@@ -10,10 +10,10 @@ from google.genai import types
 logger = logging.getLogger(__name__)
 
 VOICE_PROFILE_MAP = {
-    "AMERICAN_MALE": "Zephyr",
-    "AMERICAN_FEMALE": "Nova",
-    "BRITISH_MALE": "Echo",
-    "BRITISH_FEMALE": "Aurora",
+    "AMERICAN_MALE": "Puck",
+    "AMERICAN_FEMALE": "Kore",
+    "BRITISH_MALE": "Algieba",
+    "BRITISH_FEMALE": "Despina",
 }
 
 # --- Load API key & configure client ONCE ---
