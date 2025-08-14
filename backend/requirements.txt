@@ -22,6 +22,5 @@ fastapi
 uvicorn[standard]  # For running the server
 python-multipart   # For handling file uploads
 
-redis
 
 pytesseract
