@@ -1,36 +1,68 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI Content Transformation Suite - Frontend
 
-## Getting Started
+This directory contains the Next.js frontend application for the AI Content Transformation Suite. It provides the user interface for interacting with the backend services, allowing users to convert PDFs to audiobooks and create AI-generated storybooks.
 
-First, run the development server:
+## Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+-   **Intuitive User Interface**: A clean and responsive design for easy navigation and interaction.
+-   **PDF to Audiobook Conversion**: Upload PDF files and select voice profiles to generate audiobooks.
+-   **AI Storybook Creation & Editing**: Input text or upload PDFs to generate storybooks, with capabilities to customize characters, artistic styles, and edit individual scenes.
+-   **Dynamic Theme Switching**: Supports light, dark, and system default themes for a personalized viewing experience.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Technologies Used
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+-   **Next.js**: React framework for building server-side rendered and static web applications.
+-   **React**: JavaScript library for building user interfaces.
+-   **TypeScript**: Strongly typed superset of JavaScript that compiles to plain JavaScript.
+-   **Tailwind CSS**: A utility-first CSS framework for styling.
+-   **next-themes**: A lightweight library for managing themes (light, dark, system) in Next.js applications.
+-   **Radix UI**: Unstyled, accessible components for building high-quality design systems.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Setup (Frontend Only)
 
-## Learn More
+If you wish to run the frontend application independently of the Docker Compose setup, follow these steps:
 
-To learn more about Next.js, take a look at the following resources:
+1.  **Navigate to the frontend directory:**
+    ```bash
+    cd frontend
+    ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+2.  **Install dependencies:**
+    ```bash
+    npm install
+    # or yarn install
+    # or pnpm install
+    ```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+3.  **Configure Environment Variables:**
+    Create a `.env.local` file in the `frontend` directory and add the backend API URL:
+    ```
+    NEXT_PUBLIC_API_URL=http://localhost:8000
+    ```
+    *Note: If your backend is running on a different host or port, adjust the URL accordingly.*
 
-## Deploy on Vercel
+4.  **Run the development server:**
+    ```bash
+    npm run dev
+    # or yarn dev
+    # or pnpm dev
+    ```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+    Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Available Scripts
+
+In the project directory, you can run:
+
+-   `npm run dev`: Runs the application in development mode.
+-   `npm run build`: Builds the application for production to the `.next` folder.
+-   `npm run start`: Starts a production Next.js server.
+-   `npm run lint`: Runs ESLint to check for code quality issues.
+
+## Project Structure
+
+-   `app/`: Contains the main application routes and pages.
+-   `components/`: Reusable React components, including UI components (`ui/`).
+-   `lib/`: Utility functions and helper modules.
+-   `public/`: Static assets like images and fonts.
+-   `styles/`: Global CSS and Tailwind CSS configurations.
