@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import Image from 'next/image'; // New import
 import PdfPreviewModal from '../../../components/ui/PdfPreviewModal';
 
+import { ThemeToggle } from '@/components/theme-toggle';
 // Define types for our session data for type safety
 interface Scene {
   text: string;
@@ -170,25 +171,39 @@ export default function EditStorybookPage() {
   };
 
   // Handler for regenerating an image
-  const handleRegenerateImage = async (sceneIndex: number) => {
-    if (!session) return;
-    setRegeneratingScene(sceneIndex);
-    try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/storybook/session/${sessionId}/scene/${sceneIndex}/regenerate`, { method: 'POST' });
-      if (!response.ok) throw new Error("Failed to regenerate image.");
-      const data = await response.json();
-      const newSessionState = {...session, scenes: session.scenes.map((s, i) => i === sceneIndex ? {...s, image_url: data.new_image_url} : s)};
-      setSession(newSessionState);
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError("An unknown error occurred during image regeneration.");
-      }
-    } finally {
-      setRegeneratingScene(null);
+const handleRegenerateImage = async (sceneIndex: number) => {
+  if (!session) return;
+  setRegeneratingScene(sceneIndex);
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/storybook/session/${sessionId}/scene/${sceneIndex}/regenerate`,
+      { method: 'POST' }
+    );
+    if (!response.ok) throw new Error("Failed to regenerate image.");
+    const data = await response.json();
+
+    const newSessionState = {
+      ...session,
+      scenes: session.scenes.map((s, i) =>
+        i === sceneIndex
+          ? {
+              ...s,
+              image_url: `${data.new_image_url}?t=${Date.now()}`, // ✅ cache-buster
+            }
+          : s
+      ),
+    };
+    setSession(newSessionState);
+  } catch (err: unknown) {
+    if (err instanceof Error) {
+      setError(err.message);
+    } else {
+      setError("An unknown error occurred during image regeneration.");
     }
-  };
+  } finally {
+    setRegeneratingScene(null);
+  }
+};
 
   // Handler for the "Preview Storybook" button
   const handlePreview = async () => {
@@ -233,30 +248,33 @@ export default function EditStorybookPage() {
 
   return (
 <>
-  <main className="min-h-screen p-6 bg-gradient-to-br from-black via-zinc-900 to-neutral-900 relative overflow-hidden">
+  <main className="min-h-screen p-6 bg-background relative overflow-hidden">
     {/* Background glow accents */}
     <div className="absolute -top-40 -left-40 w-[500px] h-[500px] bg-purple-900/20 rounded-full blur-3xl"></div>
     <div className="absolute -bottom-40 -right-40 w-[400px] h-[400px] bg-indigo-900/20 rounded-full blur-3xl"></div>
 
     {/* Top Bar */}
-    <div className="flex flex-col sm:flex-row justify-between items-center mb-8 sticky top-0 backdrop-blur-md bg-black/30 py-4 z-10 px-4 rounded-b-2xl border-b border-white/10 shadow-lg">
-      <h1 className="text-3xl font-bold text-white drop-shadow-md">🎨 Edit Your Storybook</h1>
-      <button
-        onClick={handlePreview}
-        disabled={isPreviewing}
-        className="bg-gradient-to-r from-purple-700 to-indigo-800 hover:from-purple-800 hover:to-indigo-900 text-white font-bold py-2 px-5 rounded-xl shadow-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {isPreviewing ? 'Generating Preview...' : '📖 Preview Storybook'}
-      </button>
+    <div className="flex flex-col sm:flex-row justify-between items-center mb-8 sticky top-0 backdrop-blur-md bg-card/30 py-4 z-10 px-4 rounded-b-2xl border-b border-border shadow-lg">
+      <h1 className="text-3xl font-bold text-foreground drop-shadow-md">🎨 Edit Your Storybook</h1>
+      <div className="flex items-center gap-4">
+        <button
+          onClick={handlePreview}
+          disabled={isPreviewing}
+          className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-2 px-5 rounded-xl shadow-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isPreviewing ? 'Generating Preview...' : '📖 Preview Storybook'}
+        </button>
+        <ThemeToggle />
+      </div>
     </div>
 
     {/* Title and Author Inputs */}
-    <div className="mb-8 p-6 bg-black/40 border border-white/10 backdrop-blur-xl rounded-3xl shadow-2xl">
-      <h3 className="text-xl font-semibold mb-3 text-purple-300 drop-shadow-md">
+    <div className="mb-8 p-6 bg-card/40 border border-border backdrop-blur-xl rounded-3xl shadow-2xl">
+      <h3 className="text-xl font-semibold mb-3 text-primary drop-shadow-md">
         📚 Story Details
       </h3>
       <div className="mb-4">
-        <label htmlFor="storybook-title" className="block text-sm font-medium text-gray-300 mb-2">
+        <label htmlFor="storybook-title" className="block text-sm font-medium text-muted-foreground mb-2">
           Story Title
         </label>
         <input
@@ -264,12 +282,12 @@ export default function EditStorybookPage() {
           id="storybook-title"
           value={storybookTitle}
           onChange={handleTitleChange}
-          className="w-full p-3 bg-black/30 border border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:ring-2 focus:ring-purple-500 transition-all"
+          className="w-full p-3 bg-card/30 border border-border text-foreground placeholder:text-muted-foreground rounded-xl focus:ring-2 focus:ring-primary transition-all"
           placeholder="Enter your story's title"
         />
       </div>
       <div>
-        <label htmlFor="storybook-author" className="block text-sm font-medium text-gray-300 mb-2">
+        <label htmlFor="storybook-author" className="block text-sm font-medium text-muted-foreground mb-2">
           Author Name
         </label>
         <input
@@ -277,26 +295,26 @@ export default function EditStorybookPage() {
           id="storybook-author"
           value={storybookAuthor}
           onChange={handleAuthorChange}
-          className="w-full p-3 bg-black/30 border border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:ring-2 focus:ring-purple-500 transition-all"
+          className="w-full p-3 bg-card/30 border border-border text-foreground placeholder:text-muted-foreground rounded-xl focus:ring-2 focus:ring-primary transition-all"
           placeholder="Enter the author's name"
         />
       </div>
     </div>
 
     {/* Style Settings */}
-    <div className="mb-8 p-6 bg-black/40 border border-white/10 backdrop-blur-xl rounded-3xl shadow-2xl">
-      <h3 className="text-xl font-semibold mb-3 text-purple-300 drop-shadow-md">
+    <div className="mb-8 p-6 bg-card/40 border border-border backdrop-blur-xl rounded-3xl shadow-2xl">
+      <h3 className="text-xl font-semibold mb-3 text-primary drop-shadow-md">
         🎨 Style Settings
       </h3>
       <div className="mb-4">
-        <label htmlFor="font-name" className="block text-sm font-medium text-gray-300 mb-2">
+        <label htmlFor="font-name" className="block text-sm font-medium text-muted-foreground mb-2">
           Font Name
         </label>
         <select
           id="font-name"
           value={currentFontName}
           onChange={handleFontNameChange}
-          className="w-full p-3 bg-black/30 border border-white/10 text-white rounded-xl focus:ring-2 focus:ring-purple-500 transition-all"
+          className="w-full p-3 bg-card/30 border border-border text-foreground rounded-xl focus:ring-2 focus:ring-primary transition-all"
         >
           <option value="Helvetica">Helvetica</option>
           <option value="Times-Roman">Times-Roman</option>
@@ -304,7 +322,7 @@ export default function EditStorybookPage() {
         </select>
       </div>
       <div>
-        <label htmlFor="font-size" className="block text-sm font-medium text-gray-300 mb-2">
+        <label htmlFor="font-size" className="block text-sm font-medium text-muted-foreground mb-2">
           Font Size
         </label>
         <input
@@ -314,7 +332,7 @@ export default function EditStorybookPage() {
           onChange={handleFontSizeChange}
           min="8"
           max="36"
-          className="w-full p-3 bg-black/30 border border-white/10 text-white rounded-xl focus:ring-2 focus:ring-purple-500 transition-all"
+          className="w-full p-3 bg-card/30 border border-border text-foreground rounded-xl focus:ring-2 focus:ring-primary transition-all"
         />
       </div>
     </div>
@@ -324,9 +342,9 @@ export default function EditStorybookPage() {
       {session.scenes.map((scene, index) => (
         <div
           key={index}
-          className="p-6 bg-black/40 border border-white/10 backdrop-blur-xl rounded-3xl shadow-2xl"
+          className="p-6 bg-card/40 border border-border backdrop-blur-xl rounded-3xl shadow-2xl"
         >
-          <h3 className="text-xl font-semibold mb-3 text-purple-300 drop-shadow-md">
+          <h3 className="text-xl font-semibold mb-3 text-primary drop-shadow-md">
             ✨ Scene {index + 1}
           </h3>
 
@@ -334,13 +352,13 @@ export default function EditStorybookPage() {
           <textarea
             value={scene.text}
             onChange={(e) => handleTextChange(index, e.target.value)}
-            className="w-full p-4 bg-black/30 border border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:ring-2 focus:ring-purple-500 transition-all resize-none"
+            className="w-full p-4 bg-card/30 border border-border text-foreground placeholder:text-muted-foreground rounded-xl focus:ring-2 focus:ring-primary transition-all resize-none"
             rows={6}
             placeholder="Describe the scene here..."
           />
 
           {/* Image Preview */}
-          <div className="mt-6 relative aspect-square max-w-md mx-auto bg-black/30 border border-white/10 rounded-2xl flex items-center justify-center overflow-hidden">
+          <div className="mt-6 relative aspect-square max-w-md mx-auto bg-card/30 border border-border rounded-2xl flex items-center justify-center overflow-hidden">
             {scene.image_url ? (
               <Image // Changed from img
                 src={`${process.env.NEXT_PUBLIC_API_URL}${scene.image_url}`}
@@ -348,20 +366,21 @@ export default function EditStorybookPage() {
                 fill // Added fill prop
                 style={{ objectFit: 'contain' }} // Added style prop for object-fit
                 className="rounded-2xl" // Kept relevant class
+                unoptimized
               />
             ) : (
-              <div className="text-gray-400">No image generated</div>
+              <div className="text-muted-foreground">No image generated</div>
             )}
 
             {/* Regenerate Button */}
             <button
               onClick={() => handleRegenerateImage(index)}
               disabled={regeneratingScene === index}
-              className="absolute bottom-3 right-3 bg-gradient-to-r from-indigo-600 to-blue-700 hover:from-indigo-700 hover:to-blue-800 text-white p-3 rounded-full shadow-lg transition-transform hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="absolute bottom-3 right-3 bg-accent hover:bg-accent/90 text-accent-foreground p-3 rounded-full shadow-lg transition-transform hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed"
               title="Regenerate Image"
             >
               {regeneratingScene === index ? (
-                <div className="w-5 h-5 border-2 border-t-transparent border-white rounded-full animate-spin"></div>
+                <div className="w-5 h-5 border-2 border-t-transparent border-foreground rounded-full animate-spin"></div>
               ) : (
                 '🔄'
               )}

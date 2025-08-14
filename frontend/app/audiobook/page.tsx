@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { ThemeToggle } from '../../components/theme-toggle';
 
 const voiceProfiles = [
   "AMERICAN_MALE", "AMERICAN_FEMALE", "BRITISH_MALE", "BRITISH_FEMALE"
@@ -65,20 +66,25 @@ export default function AudiobookConverterPage() {
   };
 
   return (
-    <main className="relative min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-black via-zinc-900 to-neutral-900 overflow-hidden p-6">
+    <main className="relative min-h-screen flex flex-col items-center justify-center bg-background overflow-hidden p-6">
+      {/* Theme Toggle */}
+      <div className="absolute top-4 right-4 z-20">
+        <ThemeToggle />
+      </div>
+
       {/* Glow accents */}
       <div className="absolute -top-40 -left-40 w-[500px] h-[500px] bg-blue-900/20 rounded-full blur-3xl"></div>
       <div className="absolute -bottom-40 -right-40 w-[400px] h-[400px] bg-cyan-900/20 rounded-full blur-3xl"></div>
 
-      <div className="w-full max-w-lg shadow-2xl border border-white/5 backdrop-blur-xl bg-black/40 rounded-3xl p-8 relative z-10">
-        <h1 className="text-4xl font-bold mb-6 text-center text-white drop-shadow-md">
+      <div className="w-full max-w-lg shadow-2xl border border-border backdrop-blur-xl bg-card rounded-3xl p-8 relative z-10">
+        <h1 className="text-4xl font-bold mb-6 text-center text-foreground drop-shadow-md">
            PDF to Audiobook Converter
         </h1>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* File Upload */}
           <div>
-            <label htmlFor="file" className="block mb-2 text-sm font-medium text-gray-300">
+            <label htmlFor="file" className="block mb-2 text-sm font-medium text-muted-foreground">
               Upload PDF
             </label>
             <input
@@ -86,20 +92,20 @@ export default function AudiobookConverterPage() {
               id="file"
               onChange={handleFileChange}
               accept=".pdf"
-              className="bg-black/40 border border-white/10 text-white text-sm rounded-lg focus:ring-2 focus:ring-blue-500 block w-full p-2.5 placeholder:text-gray-500"
+              className="bg-input border border-border text-foreground text-sm rounded-lg focus:ring-2 focus:ring-primary block w-full p-2.5 placeholder:text-muted-foreground"
             />
           </div>
 
           {/* Voice Selection */}
           <div>
-            <label htmlFor="voice" className="block mb-2 text-sm font-medium text-gray-300">
+            <label htmlFor="voice" className="block mb-2 text-sm font-medium text-muted-foreground">
               Select Voice
             </label>
             <select
               id="voice"
               value={voice}
               onChange={(e) => setVoice(e.target.value)}
-              className="bg-black/40 border border-white/10 text-white text-sm rounded-lg focus:ring-2 focus:ring-blue-500 block w-full p-2.5"
+              className="bg-input border border-border text-foreground text-sm rounded-lg focus:ring-2 focus:ring-primary block w-full p-2.5"
             >
               {voiceProfiles.map(v => (
                 <option key={v} value={v}>
@@ -113,14 +119,14 @@ export default function AudiobookConverterPage() {
           <button
             type="submit"
             disabled={isLoading || !file}
-            className="w-full bg-gradient-to-r from-blue-700 to-cyan-800 hover:from-blue-800 hover:to-cyan-900 text-white font-bold py-3 rounded-xl shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-3 rounded-xl shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? 'Converting...' : ' Convert to Audiobook'}
           </button>
 
           {/* Error Message */}
           {error && (
-            <p className="text-red-400 text-center font-medium bg-red-900/20 p-2 rounded-lg border border-red-900/40">
+            <p className="text-destructive-foreground text-center font-medium bg-destructive/20 p-2 rounded-lg border border-destructive/40">
               {error}
             </p>
           )}
