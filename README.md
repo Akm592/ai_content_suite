@@ -61,7 +61,6 @@ To get the AI Content Transformation Suite up and running on your local machine,
 
 -   `backend/`: Contains the Python FastAPI application, including PDF parsing, TTS, and image generation logic.
 -   `frontend/`: Contains the Next.js React application for the user interface.
--   `tests/`: Contains unit and integration tests for various components of the suite.
 -   `docker-compose.yml`: Defines the multi-service Docker environment.
 
 ## Contributing
@@ -70,4 +69,4 @@ Contributions are welcome! Please feel free to submit a pull request or open an 
 
 ## License
 
-[Specify your license here, e.g., MIT License]
+
