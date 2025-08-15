@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ThemeToggle } from '@/components/theme-toggle'; // ✅ FIX: Added missing import
+import { ThemeToggle } from '@/components/theme-toggle'; 
 
 export default function StorybookCreatorStartPage() {
   const [storyText, setStoryText] = useState('');
@@ -115,7 +115,7 @@ export default function StorybookCreatorStartPage() {
       <div className="absolute -bottom-40 -right-40 w-[400px] h-[400px] bg-indigo-900/20 rounded-full blur-3xl" />
 
       <Card className="w-full max-w-3xl shadow-2xl border border-border backdrop-blur-xl bg-card rounded-3xl overflow-hidden">
-        <CardHeader className="text-center border-b border-border bg-card-foreground/10">
+        <CardHeader className="text-center border-b border-border">
           <CardTitle className="text-4xl font-bold text-foreground drop-shadow-md">
             AI Storybook Creator
           </CardTitle>
